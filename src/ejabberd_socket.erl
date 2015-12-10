@@ -181,7 +181,7 @@ send(SocketData, Data) ->
 	    ?INFO_MSG("Timeout on ~p:send",[SocketData#socket_state.sockmod]),
 	    exit(normal);
         Error ->
-	    ?DEBUG("Error in ~p:send: ~p",[SocketData#socket_state.sockmod, Error]),
+	    ?DEBUG("socket send Error in ~p:send: ~p",[SocketData#socket_state.sockmod, Error]),
 	    exit(normal)
     end.
 

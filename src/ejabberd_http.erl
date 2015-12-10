@@ -93,6 +93,7 @@ start_link(SockData, Opts) ->
 			 [SockData, Opts])}.
 
 init({SockMod, Socket}, Opts) ->
+    ?DEBUG("ejabberd_http init opts ~p", [Opts]),
     TLSEnabled = proplists:get_bool(tls, Opts),
     TLSOpts1 = lists:filter(fun ({certfile, _}) -> true;
 				({ciphers, _}) -> true;
@@ -153,6 +154,7 @@ init({SockMod, Socket}, Opts) ->
     ?DEBUG("S: ~p~n", [RequestHandlers]),
 
     DefaultHost = gen_mod:get_opt(default_host, Opts, fun(A) -> A end, undefined),
+    ?DEBUG("ejabberd_http default host ~p", [DefaultHost]),
 
     ?INFO_MSG("started: ~p", [{SockMod1, Socket1}]),
     State = #state{sockmod = SockMod1,
@@ -173,6 +175,7 @@ socket_type() ->
     raw.
 
 send_text(State, Text) ->
+    ?DEBUG("send text sate ~p~n text ~p~n", [State, Text]),
     case catch
 	   (State#state.sockmod):send(State#state.socket, Text)
 	of
@@ -181,7 +184,7 @@ send_text(State, Text) ->
 	  ?INFO_MSG("Timeout on ~p:send", [State#state.sockmod]),
 	  exit(normal);
       Error ->
-	  ?DEBUG("Error in ~p:send: ~p",
+	  ?DEBUG("http send_text Error in ~p:send: ~p",
 		 [State#state.sockmod, Error]),
 	  exit(normal)
     end.
@@ -193,6 +196,7 @@ receive_headers(#state{trail = Trail} = State) ->
     case Data of
         {error, _} -> ok;
         {ok, D} ->
+            ?DEBUG("receive headers ~p~n", [Data]),
             parse_headers(State#state{trail = <<Trail/binary, D/binary>>})
     end.
 
@@ -219,6 +223,7 @@ parse_headers(#state{request_method = Method,
     end.
 
 process_header(State, Data) ->
+    ?DEBUG("ejabberdctl state ~p~n", [State]),
     SockMod = State#state.sockmod,
     Socket = State#state.socket,
     case Data of
@@ -287,6 +292,7 @@ process_header(State, Data) ->
 					HostProvided),
 	  State2 = State#state{request_host = Host,
 			       request_port = Port, request_tp = TP},
+          ?DEBUG("process header http_eoh state2 ~p~n", [State2]),
 	  Out = process_request(State2),
 	  send_text(State2, Out),
 	  case State2#state.request_keepalive of
@@ -312,14 +318,17 @@ add_header(Name, Value, State)->
     [{Name, Value} | State#state.request_headers].
 
 get_host_really_served(undefined, Provided) ->
+    ?DEBUG("ejabberd_http host provided ~p~n", [Provided]),
     Provided;
 get_host_really_served(Default, Provided) ->
+    ?DEBUG("ejabberd_http myhosts ~p default ~p provided ~p", [?MYHOSTS, Default, Provided]),
     case lists:member(Provided, ?MYHOSTS) of
       true -> Provided;
       false -> Default
     end.
 
 get_transfer_protocol(SockMod, HostPort) ->
+    ?DEBUG("ejabberd_http get transfer protocol hostport ~p", [HostPort]),
     [Host | PortList] = str:tokens(HostPort, <<":">>),
     case {SockMod, PortList} of
       {gen_tcp, []} -> {Host, 80, http};
@@ -347,6 +356,7 @@ process(Handlers, Request, Socket, SockMod, Trail) ->
     case (lists:prefix(HandlerPathPrefix, Request#request.path) or
          (HandlerPathPrefix==Request#request.path)) of
         true ->
+            ?DEBUG("handlers ~p~nrequest ~p~nsocket ~p~nsockmod ~p~ntrail ~p~n", [Handlers, Request, Socket, SockMod, Trail]),
             ?DEBUG("~p matches ~p", [Request#request.path, HandlerPathPrefix]),
             %% LocalPath is the path "local to the handler", i.e. if
             %% the handler was registered to handle "/test/" and the
@@ -416,6 +426,7 @@ process_request(#state{request_method = Method,
 		       request_headers = RequestHeaders,
 		       request_handlers = RequestHandlers,
 		       trail = Trail} = State) ->
+    ?DEBUG("ejabberd http process", []),
     case extract_path_query(State) of
 	false ->
 	    make_bad_request(State);
