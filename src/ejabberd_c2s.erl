@@ -1227,6 +1227,7 @@ session_established(stop, StateData) ->
 %% Process packets sent by user (coming from user on c2s XMPP connection)
 session_established2(El, StateData) ->
     #xmlel{name = Name, attrs = Attrs} = El,
+    ?DEBUG("~n~nejabberd_c2s session name: ~p attrs ~p ~n~n", [Name, Attrs]),
     NewStateData = update_num_stanzas_in(StateData, El),
     ?DEBUG("~n~nejabberd_c2s session established2: ~p~n~n",  [NewStateData]),
     IwqUser = NewStateData#state.user,
@@ -1256,21 +1257,26 @@ handle_session(El, NewStateData, Name, Attrs, User) ->
             ToJID = jlib:make_jid(User, Server, <<"">>),
             handle_session2(El, NewStateData, Name, Attrs, User, ToJID);
         _ ->
-            {Tou, TServer} = erlang:list_to_tuple(string:tokens(binary_to_list(Toa), "@")),
-            case ejabberd_odbc:sql_query(Server, [<<"select username from users where username like '">>, Tou, <<"%';">>]) of
-                {selected, [<<"username">>], Tox} ->
-                    lists:foreach(fun(X) ->
-                                          ToJID = jlib:string_to_jid(list_to_binary([X, "@", TServer])),
-                                          handle_session2(El, NewStateData, Name, Attrs, User, ToJID)
-                                  end, Tox);
-                %% To = list_to_binary([Tox, <<"@">>, TServer]),
-                %% ?DEBUG("user to ~p~n", [To]),
-                %% case To of
-                %%     jlib -> jlib:string_to_jid(To);
-                %%     _ -> ?DEBUG("no to user", [])
-                %% end;
-                _ ->
-                    ?DEBUG("sql query no user", [])
+            try
+                {Tou, TServer} = erlang:list_to_tuple(string:tokens(binary_to_list(Toa), "@")),
+                case ejabberd_odbc:sql_query(Server, [<<"select username from users where username like '">>, Tou, <<"%';">>]) of
+                    {selected, [<<"username">>], Tox} ->
+                        lists:foreach(fun(X) ->
+                                              ToJID = jlib:string_to_jid(list_to_binary([X, "@", TServer])),
+                                              handle_session2(El, NewStateData, Name, Attrs, User, ToJID)
+                                      end, Tox);
+                    %% To = list_to_binary([Tox, <<"@">>, TServer]),
+                    %% ?DEBUG("user to ~p~n", [To]),
+                    %% case To of
+                    %%     jlib -> jlib:string_to_jid(To);
+                    %%     _ -> ?DEBUG("no to user", [])
+                    %% end;
+                    _ ->
+                        ?DEBUG("sql query no user", [])
+                end
+            catch
+                error:{badmatch, _} = Error ->
+                    ?DEBUG("Error when handle session ~p~n", [Toa])
             end
     end.
 
